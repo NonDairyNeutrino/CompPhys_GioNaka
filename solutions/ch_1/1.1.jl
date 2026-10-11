@@ -5,27 +5,30 @@ function euler(yn :: Number, dydt :: Number, dt :: Number)
 end
 
 function main()
+    # intialize
     GRAVITY :: Float64             = -9.8
     INITIAL_VELOCITY :: Float64    = 0.0
-    # time_step   :: Float64         = 0.1
-    time_step_vector :: Vector{Float64} = [0.001, 0.01, 0.1, 1.0]
-    time_matrix :: Matrix{Float64} = zeros(Float64, 1, length(time_step_vector))
-    velocity_matrix :: Vector{StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}} = Vector{StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}}(undef, size(time_matrix, 2))
-    velocity_matrix[1,:] .= INITIAL_VELOCITY
+    time_step_vector :: Vector{Float64} = logrange(0.001, 1.0, 4)
+    # allocate
+    time_matrix :: Vector{Vector{Float64}} = (step -> 0.0:step:10.0).(time_step_vector) .|> collect
+    # there should be a velocity for every moment in time, so copy the time and overwrite it
+    velocity_matrix :: Vector{Vector{Float64}} = deepcopy(time_matrix)
 
-    for j in 1:length(time_step_vector)
-        time_step = time_step_vector[j]
-        time_range = 0.0:time_step:10.0
-        println("using time range: ", time_range)
-        time_matrix[:, j] .= Ref(time_range)
-        for i in 2:length(time_range)
-            velocities[i, j] = euler(velocities[i-1, j], GRAVITY, time_step)
-        end
-        println("velocity sequence: ", velocity_matrix[:, j])
+    for i in 1:length(velocity_matrix)
+        velocity_matrix[i][1] = INITIAL_VELOCITY
     end
 
-    # p = plot(time_domain, velocities)
-    # @show savefig(p, "velocity.png")
+    @show length.(velocity_matrix)
+    for j in 1:length(time_step_vector)
+        time_step = time_step_vector[j]
+        for i in 2:length(velocity_matrix[j])
+            velocity_matrix[j][i] = euler(velocity_matrix[j][i-1], GRAVITY, time_step)
+        end
+        # println("velocity sequence: ", velocity_matrix[:, j])
+    end
+
+    p = plot(time_matrix, velocity_matrix)
+    @show savefig(p, "velocity.png")
 end
 
 main()
