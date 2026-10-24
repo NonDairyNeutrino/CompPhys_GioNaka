@@ -1,6 +1,6 @@
 using Plots
 
-function velocity_true(v0 :: Number, power :: Number, mass :: Number, time :: Number)
+function velocity_no_air(v0 :: Number, power :: Number, mass :: Number, time :: Number)
     return sqrt(v0^2 + 2 * power * time / mass)
 end
 
@@ -35,9 +35,14 @@ function acceleration(biker :: Biker, air_density :: Number)
 end
 
 function evolve!(acc :: Function, velocity :: Vector{Float64}, time_step :: Number)
-    for i in 2:length(velocity)
-        v = velocity[i-1]
-        velocity[i] = euler(v, acc(v), time_step)
+    threshold :: Float64 = 10^(-10)
+    i :: UInt = 2
+    push!(velocity, euler(velocity[1], acc(velocity[1]), time_step))
+    while abs(velocity[i] - velocity[i - 1]) > threshold
+        i += 1
+        v_old = velocity[i - 1]
+        v_new = euler(v_old, acc(v_old), time_step)
+        push!(velocity, v_new)
     end
 end
 
@@ -52,15 +57,18 @@ function @main(args :: Vector{String})
     TIME_FINAL = 200
     biker = Biker(MASS, POWER, AREA, C)
 
-    time :: Vector{Float64}, velocity :: Vector{Float64} = allocate(TIME_STEP, TIME_FINAL)
-    initialize!(time, TIME_STEP, TIME_FINAL, velocity, INITIAL_VELOCITY)
+    # time :: Vector{Float64}, velocity :: Vector{Float64} = allocate(TIME_STEP, TIME_FINAL)
+    # initialize!(time, TIME_STEP, TIME_FINAL, velocity, INITIAL_VELOCITY)
+    velocity = Float64[INITIAL_VELOCITY]
+
     acc = acceleration(biker, AIR_DENSITY)
     evolve!(acc, velocity, TIME_STEP)
+    time = range(; start = 0.0, length = length(velocity), step = TIME_STEP)
 
-    true_velocity = velocity_true.(INITIAL_VELOCITY, biker.power, biker.mass, time)
+    velocity_airless = velocity_no_air.(INITIAL_VELOCITY, biker.power, biker.mass, time)
 
     plot(
-         time, [velocity true_velocity],
+         time, [velocity velocity_airless],
          xlabel = "time (s)",
          ylabel = "velocity (m/s)",
          labels = ["with air" "no air"]
