@@ -36,43 +36,55 @@ end
 
 function evolve!(acc :: Function, velocity :: Vector{Float64}, time_step :: Number)
     threshold :: Float64 = 10^(-10)
-    i :: UInt = 2
     push!(velocity, euler(velocity[1], acc(velocity[1]), time_step))
+    i :: UInt = 2
     while abs(velocity[i] - velocity[i - 1]) > threshold
         i += 1
         v_old = velocity[i - 1]
         v_new = euler(v_old, acc(v_old), time_step)
         push!(velocity, v_new)
     end
+    # println("Threshold met after $i steps; Terminal velocity: ", velocity[end])
 end
 
 function @main(args :: Vector{String})
     MASS = 70
-    POWER = 400
-    AREA = 0.33
+    POWER = 10.0:10:800.0
+    AREA = 0.01:0.01:1.0
     C = 1
     AIR_DENSITY = 1
     INITIAL_VELOCITY = 4
     TIME_STEP = 0.01
     TIME_FINAL = 200
-    biker = Biker(MASS, POWER, AREA, C)
+    terminal_velocity = Matrix{Float64}(undef, length(AREA), length(POWER))
 
-    # time :: Vector{Float64}, velocity :: Vector{Float64} = allocate(TIME_STEP, TIME_FINAL)
-    # initialize!(time, TIME_STEP, TIME_FINAL, velocity, INITIAL_VELOCITY)
-    velocity = Float64[INITIAL_VELOCITY]
+    Threads.@threads for p in eachindex(POWER)
+        for a in eachindex(AREA)
+            # makes a new biker object every iteration when one could be used in-place
+            biker = Biker(MASS, POWER[p], AREA[a], C)
+            acc = acceleration(biker, AIR_DENSITY)
+            velocity = Float64[INITIAL_VELOCITY]
 
-    acc = acceleration(biker, AIR_DENSITY)
-    evolve!(acc, velocity, TIME_STEP)
-    time = range(; start = 0.0, length = length(velocity), step = TIME_STEP)
+            println("Evolving for (power, area) = ($(POWER[p]), $(AREA[a]))")
+            evolve!(acc, velocity, TIME_STEP)
 
-    velocity_airless = velocity_no_air.(INITIAL_VELOCITY, biker.power, biker.mass, time)
+            terminal_velocity[a, p] = velocity[end]
+        end
+    end
 
-    plot(
-         time, [velocity velocity_airless],
-         xlabel = "time (s)",
-         ylabel = "velocity (m/s)",
-         labels = ["with air" "no air"]
-     )
-    savefig("velocity.png")
+    heatmap(
+         POWER, AREA, terminal_velocity,
+         xlabel = "Power (W)",
+         ylabel = "Area (m^2)",
+         markers = true
+    )
+    savefig("terminal_velocity.png")
+    # plot(
+    #      time, velocity,
+    #      xlabel = "time (s)",
+    #      ylabel = "velocity (m/s)",
+    #      labels = ["with air" "no air"]
+    #  )
+    # savefig("velocity.png")
     return;
 end
